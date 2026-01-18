@@ -1,4 +1,4 @@
-import { cloneDeep } from 'lodash'
+import cloneDeep from 'lodash.clonedeep'
 
 export default class Snapshot<T> {
   private length: number // 最大记录数
@@ -22,6 +22,12 @@ export default class Snapshot<T> {
     // 确保历史记录条数限制
     if (this.snapshots.length > this.length) { this.snapshots.shift() }
     this.cursor = this.snapshots.length - 1
+  }
+
+  reset (data: T): void {
+    const snapshot = cloneDeep(data)
+    this.snapshots = [snapshot]
+    this.cursor = 0
   }
 
   prev (): T | null {

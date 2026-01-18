@@ -40,11 +40,11 @@ const viewMenu = computed(() => [
   [
     {
       name: 'zoomin',
-      disabled: zoomTransform.value.k >= scaleExtent[1]
+      disabled: zoomTransform.value.k >= scaleExtent.value[1]
     },
     {
       name: 'zoomout',
-      disabled: zoomTransform.value.k <= scaleExtent[0]
+      disabled: zoomTransform.value.k <= scaleExtent.value[0]
     },
     { name: 'zoomfit', disabled: false }
   ],

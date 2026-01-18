@@ -219,11 +219,20 @@ export const prev = (): void => {
 /**
  * foreignDivEle事件监听与观察
  */
+const onForeignDivMouseDown = (e: MouseEvent) => e.stopPropagation()
 export const bindForeignDiv = (): void => {
   if (foreignDivEle.value) {
     observer.observe(foreignDivEle.value)
     foreignDivEle.value.addEventListener('blur', onEditBlur)
-    foreignDivEle.value.addEventListener('mousedown', (e: MouseEvent) => e.stopPropagation())
+    foreignDivEle.value.addEventListener('mousedown', onForeignDivMouseDown)
+  }
+}
+
+export const unbindForeignDiv = (): void => {
+  if (foreignDivEle.value) {
+    observer.unobserve(foreignDivEle.value)
+    foreignDivEle.value.removeEventListener('blur', onEditBlur)
+    foreignDivEle.value.removeEventListener('mousedown', onForeignDivMouseDown)
   }
 }
 

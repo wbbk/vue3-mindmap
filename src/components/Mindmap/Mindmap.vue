@@ -30,19 +30,19 @@
 
 <script lang="ts">
 import emitter from '@/mitt'
-import { defineComponent, onMounted, PropType, watch, watchEffect } from 'vue'
+import { defineComponent, onMounted, onUnmounted, PropType, watch, watchEffect } from 'vue'
 import { Data, Locale, TwoNumber } from './interface'
 import style from './css'
 import * as d3 from './d3'
-import { afterOperation, ImData, mmdata } from './data'
-import { hasNext, hasPrev } from './state'
-import { fitView, getSize, centerView, next, prev, download, bindForeignDiv } from './assistant'
-import { xGap, yGap, branch, scaleExtent, ctm, selection, changeSharpCorner, addNodeBtn, mmprops } from './variable'
+import { afterOperation, ImData, isInternalModelValue, mmdata, setMmdata } from './data'
+import { hasNext, hasPrev, snapshot, updateTimeTravelState } from './state'
+import { fitView, getSize, centerView, next, prev, download, bindForeignDiv, unbindForeignDiv } from './assistant'
+import { xGap, yGap, branch, defaultScaleExtent, ctm, selection, changeSharpCorner, addNodeBtn, mmprops } from './variable'
 import { wrapperEle, svgEle, gEle, asstSvgEle, foreignEle, foreignDivEle  } from './variable/element'
 import { draw } from './draw'
 import { switchZoom, switchEdit, switchSelect, switchContextmenu, switchDrag, onClickMenu } from './listener'
 import Contextmenu from '../Contextmenu.vue'
-import { cloneDeep } from 'lodash'
+import cloneDeep from 'lodash.clonedeep'
 import i18next from '../../i18n'
 
 export default defineComponent({
@@ -66,7 +66,7 @@ export default defineComponent({
     },
     scaleExtent: {
       type: Object as PropType<TwoNumber>,
-      default: scaleExtent
+      default: () => defaultScaleExtent
     },
     sharpCorner: Boolean,
     // 操作许可
@@ -94,6 +94,12 @@ export default defineComponent({
     watchEffect(() => addNodeBtn.value = props.edit && props.addNodeBtn)
     watchEffect(() => mmprops.value.drag = props.drag)
     watchEffect(() => mmprops.value.edit = props.edit)
+
+    const onSvgMouseDown = () => {
+      const oldSele = document.getElementsByClassName(style.selected)[0]
+      oldSele?.classList.remove(style.selected)
+    }
+
     // onMounted
     onMounted(() => {
       if (!svgEle.value || !gEle.value || !asstSvgEle.value || !foreignEle.value || !foreignDivEle.value) { return }
@@ -101,7 +107,7 @@ export default defineComponent({
       emitter.emit('selection-g', d3.select(gEle.value))
       emitter.emit('selection-asstSvg', d3.select(asstSvgEle.value))
       emitter.emit('selection-foreign',d3.select(foreignEle.value))
-      emitter.emit('mmdata', new ImData(cloneDeep(props.modelValue[0]), xGap, yGap, getSize))
+      setMmdata(new ImData(cloneDeep(props.modelValue[0]), props.xGap, props.yGap, getSize))
 
       changeSharpCorner.value = false
       afterOperation()
@@ -110,14 +116,23 @@ export default defineComponent({
       bindForeignDiv()
       fitView()
       // mousedown与drag/zoom绑定的先后顺序会有影响
-      svg?.on('mousedown', () => {
-        const oldSele = document.getElementsByClassName(style.selected)[0]
-        oldSele?.classList.remove(style.selected)
-      })
+      svg?.on('mousedown.mindmap', onSvgMouseDown)
       switchZoom(props.zoom)
       switchContextmenu(props.ctm)
     })
     // watch
+    watch(() => props.modelValue, (val) => {
+      const raw = val?.[0]
+      if (!raw || isInternalModelValue(raw)) { return }
+      if (!svgEle.value || !gEle.value || !asstSvgEle.value || !foreignEle.value || !foreignDivEle.value) { return }
+      setMmdata(new ImData(cloneDeep(raw), props.xGap, props.yGap, getSize))
+      snapshot.reset(mmdata.data)
+      updateTimeTravelState()
+      if (foreignEle.value) { foreignEle.value.style.display = 'none' }
+      document.getElementsByClassName(style.selected)[0]?.classList.remove(style.selected)
+      draw()
+      fitView()
+    })
     watch(() => [props.branch, addNodeBtn.value, props.sharpCorner], () => {
       draw()
       changeSharpCorner.value = false
@@ -133,6 +148,17 @@ export default defineComponent({
     })
     watch(() => props.zoom, (val) => switchZoom(val))
     watch(() => props.ctm, (val) => switchContextmenu(val))
+
+    onUnmounted(() => {
+      emitter.emit('showContextmenu', false)
+      switchContextmenu(false)
+      switchZoom(false)
+      switchSelect(false)
+      switchDrag(false)
+      switchEdit(false)
+      selection.svg?.on('mousedown.mindmap', null)
+      unbindForeignDiv()
+    })
 
     return {
       wrapperEle,

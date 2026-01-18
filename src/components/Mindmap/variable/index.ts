@@ -32,8 +32,8 @@ export let branch = 4
 emitter.on<number>('branch', (value) => branch = value || branch)
 
 // 缩放程度
-export let scaleExtent: TwoNumber = [0.1, 8]
-emitter.on<TwoNumber>('scale-extent', (value) => scaleExtent = value || scaleExtent)
+export const defaultScaleExtent: TwoNumber = [0.1, 8]
+export const scaleExtent = ref<TwoNumber>(defaultScaleExtent)
 
 // 可编辑指示
 export let editFlag = false
@@ -76,7 +76,7 @@ export const addBtnRect = { side: 12, padding: 2, margin: 8 }
 export const addBtnSide = addBtnRect.side + addBtnRect.padding * 2
 export const expandBtnRect = { width: 16, height: 4, radius: 2 }
 export const zoomTransform: Ref<d3.ZoomTransform> = ref(d3.zoomIdentity)
-export const zoom = d3.zoom<SVGSVGElement, null>().on('zoom', onZoomMove).scaleExtent(scaleExtent)
+export const zoom = d3.zoom<SVGSVGElement, null>().on('zoom', onZoomMove).scaleExtent(scaleExtent.value)
 export const drag = d3.drag<SVGGElement, Mdata>().container(getDragContainer).on('drag', onDragMove).on('end', onDragEnd)
 export const addNodeBtn = ref(false)
 export let mmcontext: SetupContext
@@ -84,4 +84,10 @@ emitter.on<SetupContext>('mindmap-context', (val) => val ? mmcontext = val : nul
 export const mmprops = ref({
   drag: false,
   edit: false
+})
+
+emitter.on<TwoNumber>('scale-extent', (value) => {
+  if (!value) { return }
+  scaleExtent.value = value
+  zoom.scaleExtent(value)
 })

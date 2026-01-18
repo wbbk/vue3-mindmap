@@ -8,13 +8,25 @@ import ImData from './ImData'
 
 export { ImData }
 
+const isDataLike = (val: unknown): val is Data => {
+  return typeof val === 'object' && val !== null && 'name' in (val as Record<string, unknown>)
+}
+const internalModelValues = new WeakSet<Data>()
+
+export const isInternalModelValue = (val: unknown): boolean => {
+  return isDataLike(val) && internalModelValues.has(val)
+}
+
 // 思维导图数据
 export let mmdata: ImData
 emitter.on<ImData>('mmdata', (val) => val ? mmdata = val : null)
+export const setMmdata = (val: ImData): void => { mmdata = val }
 
 export const afterOperation = (snap = true): void => {
   if (snap) { snapshot.snap(mmdata.data) }
-  mmcontext.emit('update:modelValue', cloneDeep([mmdata.data.rawData]))
+  const payload = cloneDeep([mmdata.data.rawData])
+  internalModelValues.add(payload[0])
+  mmcontext.emit('update:modelValue', payload)
   updateTimeTravelState()
   draw()
 }

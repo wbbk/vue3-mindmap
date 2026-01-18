@@ -22,7 +22,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, useCssModule, PropType, ref, Ref, nextTick, reactive } from 'vue'
+import { defineComponent, useCssModule, PropType, ref, Ref, nextTick, reactive, onUnmounted } from 'vue'
 import emitter from '@/mitt'
 import { MenuItem } from './Mindmap/variable/contextmenu'
 import i18n from '../i18n'
@@ -44,7 +44,7 @@ export default defineComponent({
     const pos = reactive({ top: 0, left: 0 })
     const margin = 8
 
-    emitter.on<boolean>('showContextmenu', async (val) => {
+    const onShowContextmenu = async (val: boolean) => {
       if (!containerEle.value || !menuEle.value) { return }
       show.value = !!val
       await nextTick()
@@ -53,7 +53,10 @@ export default defineComponent({
       const { top, left } = props.position
       pos.top = top + h2 > h1 ? h1 - h2 - margin : top
       pos.left = left + w2 > w1 ? left - w2 : left
-    })
+    }
+    emitter.on<boolean>('showContextmenu', onShowContextmenu)
+    onUnmounted(() => emitter.off('showContextmenu', onShowContextmenu))
+
     const close = () => show.value = false
     const onClick = (name: string) => {
       close()
