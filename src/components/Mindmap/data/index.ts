@@ -3,7 +3,7 @@ import cloneDeep from 'lodash.clonedeep'
 import { draw } from '../draw'
 import { Data, IsMdata } from '../interface'
 import { snapshot, updateTimeTravelState } from '../state'
-import { mmcontext } from '../variable'
+import { mmcontext, mmprops } from '../variable'
 import ImData from './ImData'
 
 export { ImData }
@@ -23,8 +23,9 @@ emitter.on<ImData>('mmdata', (val) => val ? mmdata = val : null)
 export const setMmdata = (val: ImData): void => { mmdata = val }
 
 export const afterOperation = (snap = true): void => {
-  if (snap) { snapshot.snap(mmdata.data) }
-  const payload = cloneDeep([mmdata.data.rawData])
+  const shouldSnap = snap && mmprops.value.timetravel
+  if (shouldSnap) { snapshot.snap(mmdata.data) }
+  const payload = mmprops.value.cloneOnEmit ? cloneDeep([mmdata.data.rawData]) : [mmdata.data.rawData]
   internalModelValues.add(payload[0])
   mmcontext.emit('update:modelValue', payload)
   updateTimeTravelState()

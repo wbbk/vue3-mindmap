@@ -74,6 +74,8 @@ export default defineComponent({
     fitBtn: Boolean,
     downloadBtn: Boolean,
     timetravel: Boolean,
+    cloneOnEmit: { type: Boolean, default: true },
+    animate: { type: Boolean, default: true },
     addNodeBtn: Boolean,
     edit: Boolean,
     drag: Boolean,
@@ -94,6 +96,9 @@ export default defineComponent({
     watchEffect(() => addNodeBtn.value = props.edit && props.addNodeBtn)
     watchEffect(() => mmprops.value.drag = props.drag)
     watchEffect(() => mmprops.value.edit = props.edit)
+    watchEffect(() => mmprops.value.timetravel = props.timetravel)
+    watchEffect(() => mmprops.value.cloneOnEmit = props.cloneOnEmit)
+    watchEffect(() => mmprops.value.animate = props.animate)
 
     const onSvgMouseDown = () => {
       const oldSele = document.getElementsByClassName(style.selected)[0]
@@ -145,6 +150,12 @@ export default defineComponent({
       switchSelect(val[0] || val[1])
       switchDrag(val[0])
       switchEdit(val[1])
+    })
+    watch(() => props.timetravel, (val) => {
+      if (!val) { return }
+      if (!mmdata?.data) { return }
+      snapshot.reset(mmdata.data)
+      updateTimeTravelState()
     })
     watch(() => props.zoom, (val) => switchZoom(val))
     watch(() => props.ctm, (val) => switchContextmenu(val))

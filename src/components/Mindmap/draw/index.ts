@@ -96,7 +96,7 @@ const appendNode = (enter: d3.Selection<d3.EnterElement, Mdata, SVGGElement, IsM
 
 const updateNode = (update: SelectionG) => {
   const isRoot = !update.data()[0]?.depth
-  const tran = makeTransition(500, d3.easePolyOut)
+  const tran = makeTransition(mmprops.value.animate ? 500 : 0, d3.easePolyOut)
   attrG(update, tran)
   attrPath(update.select<SVGPathElement>(':scope > path'), tran)
   const gContent = update.select<SVGGElement>(`:scope > g.${style.content}`)

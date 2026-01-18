@@ -2,7 +2,7 @@ import * as d3 from '../d3'
 import { Mdata, TwoNumber } from '../interface'
 import emitter from '@/mitt'
 import { Ref, ref, SetupContext } from 'vue'
-import { onDragEnd, onDragMove, onZoomMove } from '../listener'
+import { onDragEnd, onDragMove, onDragStart, onZoomMove } from '../listener'
 import * as selection from './selection'
 import * as element from './element'
 import { getDragContainer, moveView } from '../assistant'
@@ -77,13 +77,20 @@ export const addBtnSide = addBtnRect.side + addBtnRect.padding * 2
 export const expandBtnRect = { width: 16, height: 4, radius: 2 }
 export const zoomTransform: Ref<d3.ZoomTransform> = ref(d3.zoomIdentity)
 export const zoom = d3.zoom<SVGSVGElement, null>().on('zoom', onZoomMove).scaleExtent(scaleExtent.value)
-export const drag = d3.drag<SVGGElement, Mdata>().container(getDragContainer).on('drag', onDragMove).on('end', onDragEnd)
+export const drag = d3.drag<SVGGElement, Mdata>()
+  .container(getDragContainer)
+  .on('start', onDragStart)
+  .on('drag', onDragMove)
+  .on('end', onDragEnd)
 export const addNodeBtn = ref(false)
 export let mmcontext: SetupContext
 emitter.on<SetupContext>('mindmap-context', (val) => val ? mmcontext = val : null)
 export const mmprops = ref({
   drag: false,
-  edit: false
+  edit: false,
+  timetravel: false,
+  cloneOnEmit: true,
+  animate: true
 })
 
 emitter.on<TwoNumber>('scale-extent', (value) => {

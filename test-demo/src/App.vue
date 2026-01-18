@@ -22,8 +22,15 @@
         <label><input type="checkbox" v-model="zoom" /> zoom</label>
         <label><input type="checkbox" v-model="ctm" /> contextmenu</label>
         <label><input type="checkbox" v-model="timetravel" /> timetravel</label>
+        <label><input type="checkbox" v-model="cloneOnEmit" /> cloneOnEmit</label>
+        <label><input type="checkbox" v-model="animate" /> animate</label>
         <label><input type="checkbox" v-model="edit" /> edit</label>
         <label><input type="checkbox" v-model="drag" /> drag</label>
+      </div>
+      <div class="row">
+        <button @click="generateBigData(2000)">生成 2000 节点</button>
+        <button @click="generateBigData(5000)">生成 5000 节点</button>
+        <span>nodes: {{ nodeCount }}</span>
       </div>
       <div class="hint">
         <div>验证点：</div>
@@ -31,6 +38,7 @@
         <div>2) 修改 scaleExtent 后，zoomin/zoomout 的禁用状态与缩放边界应同步更新。</div>
         <div>3) 点击“外部替换 modelValue”，视图应刷新且时间旅行从新数据重新开始。</div>
         <div>4) 反复 Mount/Unmount 不应出现菜单/事件异常。</div>
+        <div>5) 大数据下拖拽时，不应出现明显卡顿；关闭 animate/cloneOnEmit 应更流畅。</div>
       </div>
     </div>
     <div class="canvas">
@@ -40,6 +48,8 @@
         :zoom="zoom"
         :ctm="ctm"
         :timetravel="timetravel"
+        :clone-on-emit="cloneOnEmit"
+        :animate="animate"
         :edit="edit"
         :drag="drag"
         :scale-extent="scaleExtent"
@@ -66,6 +76,36 @@ const makeData = (name: string): Data => ({
   ]
 })
 
+const countNodes = (root: Data): number => {
+  let count = 0
+  const queue: Data[] = [root]
+  while (queue.length) {
+    const cur = queue.shift()!
+    count += 1
+    if (cur.children) { queue.push(...cur.children) }
+  }
+  return count
+}
+
+const makeBigData = (total: number): Data => {
+  const root: Data = { name: 'Root', children: [] }
+  const queue: Data[] = [root]
+  let i = 1
+  while (queue.length && i < total) {
+    const parent = queue.shift()!
+    if (!parent.children) { parent.children = [] }
+    const addCount = Math.min(6, total - i)
+    for (let c = 0; c < addCount; c += 1) {
+      const child: Data = { name: `N-${i}` }
+      i += 1
+      parent.children.push(child)
+      queue.push(child)
+      if (i >= total) { break }
+    }
+  }
+  return root
+}
+
 export default defineComponent({
   name: 'TestDemoApp',
   components: { Mindmap },
@@ -85,12 +125,20 @@ export default defineComponent({
     const zoom = ref(true)
     const ctm = ref(true)
     const timetravel = ref(true)
+    const cloneOnEmit = ref(true)
+    const animate = ref(true)
     const edit = ref(true)
     const drag = ref(true)
 
     const replaceModelValue = () => {
       data.value = [makeData(`Root-${Date.now()}`)]
     }
+
+    const generateBigData = (n: number) => {
+      data.value = [makeBigData(n)]
+    }
+
+    const nodeCount = computed(() => countNodes(data.value[0]))
 
     return {
       mounted,
@@ -102,9 +150,13 @@ export default defineComponent({
       zoom,
       ctm,
       timetravel,
+      cloneOnEmit,
+      animate,
       edit,
       drag,
-      replaceModelValue
+      nodeCount,
+      replaceModelValue,
+      generateBigData
     }
   }
 })
@@ -143,4 +195,3 @@ export default defineComponent({
   position: relative;
 }
 </style>
-

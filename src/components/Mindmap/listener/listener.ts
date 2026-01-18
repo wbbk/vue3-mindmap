@@ -1,13 +1,93 @@
 import style from '../css'
 import { ctm, editFlag, selection, textRectPadding, zoomTransform } from '../variable'
 import * as d3 from '../d3'
-import { Mdata } from '../interface'
+import { Mdata, TwoNumber } from '../interface'
 import { fitView, getRelativePos, getSelectedGData, isData, moveNode, moveView, scaleView, selectGNode } from '../assistant'
 import { add, addParent, addSibling, changeLeft, collapse, del, delOne, expand, mmdata, moveChild, moveSibling, rename } from '../data'
 import { svgEle, gEle, foreignDivEle, wrapperEle, foreignEle } from '../variable/element'
 import emitter from '@/mitt'
 import { getDataId, getSiblingGClass } from '../attribute'
 import { MenuEvent } from '../variable/contextmenu'
+
+type DropRect = { x0: number, x1: number, y0: number, y1: number }
+type DropTarget = { node: SVGGElement, rect: DropRect }
+type DragDropIndex = { cellSize: number, grid: Map<string, number[]>, targets: DropTarget[] }
+
+let dragDropIndex: DragDropIndex | null = null
+let lastOutlineNode: SVGGElement | null = null
+
+const buildDragDropIndex = (d: Mdata): DragDropIndex | null => {
+  const { g } = selection
+  if (!g) { return null }
+
+  const cellSize = 160
+  const targets: DropTarget[] = []
+  const grid = new Map<string, number[]>()
+
+  const addToGrid = (rect: DropRect, targetIndex: number): void => {
+    const x0 = Math.floor(rect.x0 / cellSize)
+    const x1 = Math.floor(rect.x1 / cellSize)
+    const y0 = Math.floor(rect.y0 / cellSize)
+    const y1 = Math.floor(rect.y1 / cellSize)
+    for (let x = x0; x <= x1; x += 1) {
+      for (let y = y0; y <= y1; y += 1) {
+        const key = `${x},${y}`
+        const list = grid.get(key)
+        if (list) {
+          list.push(targetIndex)
+        } else {
+          grid.set(key, [targetIndex])
+        }
+      }
+    }
+  }
+
+  g.selectAll<SVGGElement, Mdata>('g.node').each(function (other) {
+    if (other === d || other === d.parent || other.id.startsWith(d.id)) { return }
+    let diffx0 = textRectPadding
+    let diffx1 = other.width + textRectPadding
+    if (other.left && other.depth !== 0) {
+      [diffx0, diffx1] = [diffx1, diffx0]
+    }
+    const rect = {
+      x0: other.x - diffx0,
+      x1: other.x + diffx1,
+      y0: other.y - textRectPadding,
+      y1: other.y + other.height + textRectPadding
+    }
+    const targetIndex = targets.length
+    targets.push({ node: this, rect })
+    addToGrid(rect, targetIndex)
+  })
+
+  return { cellSize, grid, targets }
+}
+
+const queryDragDropTarget = (index: DragDropIndex, point: TwoNumber): SVGGElement | null => {
+  const cx = Math.floor(point[0] / index.cellSize)
+  const cy = Math.floor(point[1] / index.cellSize)
+  const seen = new Set<number>()
+
+  for (let dx = -1; dx <= 1; dx += 1) {
+    for (let dy = -1; dy <= 1; dy += 1) {
+      const key = `${cx + dx},${cy + dy}`
+      const list = index.grid.get(key)
+      if (!list) { continue }
+      for (let i = 0; i < list.length; i += 1) {
+        const idx = list[i]
+        if (seen.has(idx)) { continue }
+        seen.add(idx)
+        const target = index.targets[idx]
+        const r = target.rect
+        if (point[0] > r.x0 && point[1] > r.y0 && point[0] < r.x1 && point[1] < r.y1) {
+          return target.node
+        }
+      }
+    }
+  }
+
+  return null
+}
 
 /**
  * @param this - gContent
@@ -196,29 +276,16 @@ export function onDragMove (this: SVGGElement, e: d3.D3DragEvent<SVGGElement, Md
   // 鼠标相对gEle左上角的位置
   const mousePos = d3.pointer(e, gEle.value)
   mousePos[1] += mmdata.data.y
-
-  const temp = g.selectAll<SVGGElement, Mdata>('g.node').filter((other) => {
-    if (other !== d && other !== d.parent && !other.id.startsWith(d.id)) {
-      let diffx0 = textRectPadding
-      let diffx1 = other.width + textRectPadding
-      if (other.left && other.depth !== 0) {
-        [diffx0, diffx1] = [diffx1, diffx0]
-      }
-      const rect = {
-        x0: other.x - diffx0,
-        x1: other.x + diffx1,
-        y0: other.y - textRectPadding,
-        y1: other.y + other.height + textRectPadding
-      }
-
-      return mousePos[0] > rect.x0 && mousePos[1] > rect.y0 && mousePos[0] < rect.x1 && mousePos[1] < rect.y1
-    }
-    return false
-  })
-  const old = Array.from(document.getElementsByClassName(style.outline))
-  const n = temp.node()
-  old.forEach((o) => { if (o !== n) { o.classList.remove(style.outline) } })
-  n?.classList.add(style.outline)
+  const n = dragDropIndex ? queryDragDropTarget(dragDropIndex, mousePos as TwoNumber) : null
+  if (lastOutlineNode && lastOutlineNode !== n) {
+    lastOutlineNode.classList.remove(style.outline)
+  }
+  if (n) {
+    n.classList.add(style.outline)
+    lastOutlineNode = n
+  } else {
+    lastOutlineNode = null
+  }
 }
 
 /**
@@ -227,6 +294,7 @@ export function onDragMove (this: SVGGElement, e: d3.D3DragEvent<SVGGElement, Md
 export function onDragEnd (this: SVGGElement, e: d3.D3DragEvent<SVGGElement, Mdata, Mdata>, d: Mdata): void {
   const gNode = this.parentNode?.parentNode as SVGGElement
   if (svgEle.value) { svgEle.value.classList.remove(style.dragging) }
+  dragDropIndex = null
   // 判断是否找到了新的父节点
   const np = document.getElementsByClassName(style.outline)[0]
   if (np) {
@@ -273,4 +341,13 @@ export function onDragEnd (this: SVGGElement, e: d3.D3DragEvent<SVGGElement, Mda
     // 复原
     moveNode(gNode, d, [0, 0], 500)
   }
+}
+
+export function onDragStart (this: SVGGElement, _e: d3.D3DragEvent<SVGGElement, Mdata, Mdata>, d: Mdata): void {
+  if (svgEle.value) { svgEle.value.classList.add(style.dragging) }
+  if (lastOutlineNode) {
+    lastOutlineNode.classList.remove(style.outline)
+    lastOutlineNode = null
+  }
+  dragDropIndex = buildDragDropIndex(d)
 }

@@ -14,6 +14,17 @@ export default class Snapshot<T> {
   get hasPrev(): boolean { return this.cursor > 0 }
   get hasNext(): boolean { return this.snapshots.length > this.cursor + 1 }
 
+  setLength (length: number): void {
+    const nextLength = Math.max(1, Math.floor(length))
+    this.length = nextLength
+    while (this.snapshots.length > this.length) {
+      this.snapshots.shift()
+      this.cursor -= 1
+    }
+    if (this.cursor < -1) { this.cursor = -1 }
+    if (this.cursor > this.snapshots.length - 1) { this.cursor = this.snapshots.length - 1 }
+  }
+
   snap (data: T): void { // 记录数据快照
     const snapshot = cloneDeep(data)
     // 去除旧分支

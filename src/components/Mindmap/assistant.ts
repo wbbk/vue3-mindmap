@@ -4,7 +4,7 @@ import { getDataId, getGTransform, getPath } from './attribute'
 import * as d3 from './d3'
 import style from './css'
 import { Data, Mdata, TwoNumber } from './interface'
-import { observer, selection, zoom, zoomTransform } from './variable'
+import { mmprops, observer, selection, zoom, zoomTransform } from './variable'
 import { afterOperation, mmdata } from './data'
 import { snapshot } from './state'
 import { foreignDivEle, gEle, svgEle, wrapperEle } from './variable/element'
@@ -104,12 +104,33 @@ export function getSelectedGData (): Mdata {
   return sele.data()[0]
 }
 
+const textSizeCache = new Map<string, { width: number, height: number }>()
+const textSizeCacheLimit = 2000
+
+function sizeCacheGet (key: string): { width: number, height: number } | null {
+  const v = textSizeCache.get(key)
+  if (!v) { return null }
+  textSizeCache.delete(key)
+  textSizeCache.set(key, v)
+  return v
+}
+
+function sizeCacheSet (key: string, value: { width: number, height: number }): void {
+  if (textSizeCache.has(key)) { textSizeCache.delete(key) }
+  textSizeCache.set(key, value)
+  if (textSizeCache.size <= textSizeCacheLimit) { return }
+  const firstKey = textSizeCache.keys().next().value as string | undefined
+  if (firstKey !== undefined) { textSizeCache.delete(firstKey) }
+}
+
 /**
  * 获取文本在tspan中的宽度与高度
  * @param text -
  * @returns -
  */
 export const getSize = (text: string): { width: number, height: number } => {
+  const cached = sizeCacheGet(text)
+  if (cached) { return cached }
   const { asstSvg } = selection
   if (!asstSvg) { throw new Error('asstSvg undefined') }
   const multiline = getMultiline(text)
@@ -117,14 +138,17 @@ export const getSize = (text: string): { width: number, height: number } => {
   t.selectAll('tspan').data(multiline).enter().append('tspan').text((d) => d).attr('x', 0)
   const tBox = (t.node() as SVGTextElement).getBBox()
   t.remove()
-  return {
+  const result = {
     width: Math.max(tBox.width, 22),
     height: Math.max(tBox.height, 22) * multiline.length
   }
+  sizeCacheSet(text, result)
+  return result
 }
 
 export const moveNode = (node: SVGGElement, d: Mdata, p: TwoNumber, dura = 0): void => {
-  const tran = makeTransition(dura, d3.easePolyOut)
+  const realDura = mmprops.value.animate ? dura : 0
+  const tran = makeTransition(realDura, d3.easePolyOut)
   d.px = p[0]
   d.py = p[1]
   d3.select<SVGGElement, Mdata>(node).transition(tran).attr('transform', getGTransform)
